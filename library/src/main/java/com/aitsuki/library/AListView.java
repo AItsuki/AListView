@@ -1,4 +1,4 @@
-package com.aitsuki.alistview.widget;
+package com.aitsuki.library;
 
 import android.content.Context;
 import android.support.v4.view.MotionEventCompat;
@@ -9,7 +9,6 @@ import android.view.View;
 import android.view.ViewParent;
 import android.widget.AbsListView;
 import android.widget.AdapterView;
-import android.widget.HeaderViewListAdapter;
 import android.widget.ListView;
 
 /**
@@ -29,29 +28,16 @@ public class AListView extends ListView implements AbsListView.OnScrollListener,
     private LoadMoreFooter loadMoreFooter;
 
     private OnScrollListener scrollListener; // user's scroll listener
-    private OnItemClickListener onItemClickListener;
+    private OnItemClickListener onItemClickListener;    // user's itemClick listener
 
-    private boolean waitingLoadingCompletedToRefresh;
-    private boolean waitingRefreshCompletedToLoadMore;
+    private boolean waitingLoadingCompletedToRefresh;   // 等待加载更多成功后去调用刷新
+    private boolean waitingRefreshCompletedToLoadMore;  // 等待刷新成功后去调用加载更多
 
-    private CallBackMode callBackMode = CallBackMode.ENQUEUE;
-
-    public void setCanLoadMore(boolean canLoadMore) {
-        loadMoreFooter.setCanLoadMore(canLoadMore);
-    }
-
-    /**
-     * 回调模式<br>
-     * 当刷新和加载更多同时进行时的处理方式。<br>
-     * NORMAL：不做处理（分页加载可能会导致页码混乱，你需要自己做处理）<br>
-     * ENQUEUE：队列模式，同时进行时，等待其中一个执行完毕（complete）时，再去回调另外一个（默认）。
-     * 例如：先刷新后加载， startRefreshing --> refreshComplete -- >  startLoadingMore -- > loadingCompleted
-     * <p/>
-     * 以后还可能提供第三种模式，刷新时禁用加载更多，加载时禁用下拉刷新（比较麻烦，不想弄=。=）
-     */
     public enum CallBackMode {
         NORMAL, ENQUEUE
     }
+
+    private CallBackMode callBackMode = CallBackMode.ENQUEUE;
 
     public AListView(Context context) {
         super(context);
@@ -68,23 +54,26 @@ public class AListView extends ListView implements AbsListView.OnScrollListener,
         initView();
     }
 
+    public void setCanLoadMore(boolean canLoadMore) {
+        loadMoreFooter.setCanLoadMore(canLoadMore);
+    }
+
     private void initView() {
         super.setOnScrollListener(this);
         super.setOnItemClickListener(this);
 
         setOverScrollMode(OVER_SCROLL_NEVER);
 
-        DefaultHeader defaultHeader = new DefaultHeader(getContext());
-        setRefreshHeader(defaultHeader);
+        QQHeader QQHeader = new QQHeader(getContext());
+        setRefreshHeader(QQHeader);
 
-        DefaultFooter footer = new DefaultFooter(getContext());
+        QQFooter footer = new QQFooter(getContext());
         setLoadMoreFooter(footer);
 
     }
 
     /**
      * 设置刷新头部
-     *
      * @param refreshHeader header
      */
     public void setRefreshHeader(RefreshHeader refreshHeader) {
@@ -100,7 +89,6 @@ public class AListView extends ListView implements AbsListView.OnScrollListener,
 
     /**
      * 设置加载更多的footer
-     *
      * @param footer footer
      */
     public void setLoadMoreFooter(LoadMoreFooter footer) {
@@ -116,8 +104,6 @@ public class AListView extends ListView implements AbsListView.OnScrollListener,
 
     /**
      * 刷新侦听
-     *
-     * @param onRefreshListener listener
      */
     public void setOnRefreshListener(OnRefreshListener onRefreshListener) {
         this.onRefreshListener = onRefreshListener;
@@ -125,23 +111,22 @@ public class AListView extends ListView implements AbsListView.OnScrollListener,
 
     /**
      * 加载更多侦听
-     *
-     * @param onLoadMoreListener listener
      */
     public void setOnLoadMoreListener(OnLoadMoreListener onLoadMoreListener) {
         this.onLoadMoreListener = onLoadMoreListener;
     }
 
     /**
-     * 当你数据加载完毕后，需要调用此方法让header回到原位
+     * 当数据加载完毕后，需要调用此方法让header回到原位
+     * @param success 刷新成功，刷新失败（header的状态不一致：complete或者failure）
      */
     public void refreshComplete(boolean success) {
         refreshHeader.setRefreshComplete(success);
 
+        // 刷新成功后，将failure状态重置
         if (success && loadMoreFooter.getState() == LoadMoreFooter.State.FAILURE) {
             loadMoreFooter.changeState(LoadMoreFooter.State.RESET);
         }
-        Log.e("123123", "refreshComplete");
 
         // 刷新成功后，如果需要加载更多，那么回调onLoadMore
         if (waitingRefreshCompletedToLoadMore) {
@@ -151,12 +136,11 @@ public class AListView extends ListView implements AbsListView.OnScrollListener,
     }
 
     /**
-     * 当你数据加载完毕后，需要调用此方法重置footer的状态
-     *
-     * @param successful 刷新成功：隐藏了。  刷新失败，会显示失败状态（点击重试）
+     * 当数据加载完毕后，需要调用此方法重置footer的状态
+     * @param success 刷新成功：隐藏了。  刷新失败，会显示失败状态（点击重试）
      */
-    public void loadMoreComplete(boolean successful) {
-        loadMoreFooter.setLoadMoreComplete(successful);
+    public void loadMoreComplete(boolean success) {
+        loadMoreFooter.setLoadMoreComplete(success);
         Log.e("123123", "loadMoreComplete");
         // 加载成功后，如果需要刷新，那么回调onRefresh
         if (waitingLoadingCompletedToRefresh) {
@@ -165,8 +149,21 @@ public class AListView extends ListView implements AbsListView.OnScrollListener,
         }
     }
 
+    /**
+     * 自动刷新
+     */
     public void autoRefresh() {
         refreshHeader.autoRefresh();
+    }
+
+    /**
+     * 当刷新和加载更多同时进行时，可能会导致分页加载时的页面错误。<br/>
+     * 可以通过此方法设置处理方式：<br/>
+     * NORMAL: 不做处理，但是开发者必须自己处理。<br/>
+     * ENQUEUE: 队列模式，刷新和加载更多同时进行时，只会回调其中一个，成功后再回调另一个（默认ENQUEUE）
+     */
+    public void setCallBackMode(CallBackMode callBackMode) {
+        this.callBackMode = callBackMode;
     }
 
     @Override
@@ -247,7 +244,6 @@ public class AListView extends ListView implements AbsListView.OnScrollListener,
                 waitingLoadingCompletedToRefresh = true;
             } else {
                 onRefreshListener.onRefresh();
-                Log.e("123123", "startRefresh");
             }
         }
     }
@@ -264,7 +260,6 @@ public class AListView extends ListView implements AbsListView.OnScrollListener,
                 waitingRefreshCompletedToLoadMore = true;
             } else {
                 onLoadMoreListener.onLoadMore();
-                Log.e("123123", "startLoadMore");
             }
         }
     }
@@ -309,12 +304,13 @@ public class AListView extends ListView implements AbsListView.OnScrollListener,
 
     @Override
     public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+
+        /*
+         * 在加载更多成功的那一刻点击item，可能会报空指针
+         * 因为此时loadMoreFooter这个item已经从listView中暂时移除
+         * 所以在这里做了parent判断
+         */
         int footerPosition = -1;
-        // 数据加载成功，loadMoreFooter被新的数据挤出屏幕
-        // 如果此时刚好在那一刻点击了loadMoreFooter，getPositionForView会报空指针。
-        // 那是因为loadMoreFooter已经被暂时移除出了AdapterView，没有了parent。
-        // 而getPositionForView先需要通过getParent判断loadMoreFooter是否属于adapterView
-        // 这里的getParent就空指针了，所以这里需要判断一下
         ViewParent viewParent = loadMoreFooter.getParent();
         if(viewParent != null) {
             footerPosition = getPositionForView(loadMoreFooter);

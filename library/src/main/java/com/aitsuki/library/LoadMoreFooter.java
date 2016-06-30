@@ -1,4 +1,4 @@
-package com.aitsuki.alistview.widget;
+package com.aitsuki.library;
 
 import android.content.Context;
 import android.view.View;
@@ -21,6 +21,7 @@ public abstract class LoadMoreFooter extends LinearLayout {
 
     private static final float DRAG_RATE = 0.5f;
     private final AutoScroll autoScroll;
+    private final int maxDragDistance;
 
     private View contentView;   // footer
     private State state = State.RESET;
@@ -30,6 +31,7 @@ public abstract class LoadMoreFooter extends LinearLayout {
 
     public LoadMoreFooter(Context context) {
         super(context);
+        maxDragDistance = Utils.dip2px(context, 500); // 默认500dp
         autoScroll = new AutoScroll();
         contentView = getContentView();
         LayoutParams lp = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
@@ -38,11 +40,11 @@ public abstract class LoadMoreFooter extends LinearLayout {
         footerHeight = getMeasuredHeight();
     }
 
-    public void bindLoading(Loading loading) {
+    protected void bindLoading(Loading loading) {
         this.loading = loading;
     }
 
-    public void setVisibleHeight(int height) {
+    protected void setVisibleHeight(int height) {
         LayoutParams lp = (LayoutParams) contentView.getLayoutParams();
         lp.height = height;
         contentView.setLayoutParams(lp);
@@ -52,11 +54,7 @@ public abstract class LoadMoreFooter extends LinearLayout {
         return contentView.getLayoutParams().height;
     }
 
-    public int getFooterHeight() {
-        return footerHeight;
-    }
-
-    public void setLoadMoreComplete(boolean successful) {
+    protected void setLoadMoreComplete(boolean successful) {
         if (successful) {
             changeState(State.RESET);
         } else {
@@ -64,7 +62,7 @@ public abstract class LoadMoreFooter extends LinearLayout {
         }
     }
 
-    public void onScroll(int lastVisiblePosition, int count) {
+    protected void onScroll(int lastVisiblePosition, int count) {
         // 当没有数据的时候，不显示footer
         if(count <= 0) {
             contentView.setVisibility(GONE);
@@ -77,11 +75,11 @@ public abstract class LoadMoreFooter extends LinearLayout {
         }
     }
 
-    public void onPress() {
-
+    protected void onPress() {
+        autoScroll.stop();
     }
 
-    public void onRelease() {
+    protected void onRelease() {
         int height = canLoadMore ? footerHeight : 0;
         if(getVisibleHeight() > height) {
             autoScroll.scrollTo(height, 250);
@@ -92,7 +90,7 @@ public abstract class LoadMoreFooter extends LinearLayout {
         return state;
     }
 
-    public void changeState(State state) {
+    protected void changeState(State state) {
         this.state = state;
         switch (state) {
             case RESET:
@@ -107,19 +105,31 @@ public abstract class LoadMoreFooter extends LinearLayout {
             case FAILURE:
                 onFailure();
                 break;
-            case NOMORE:
+            case NO_MORE:
                 onNoMore();
                 break;
         }
     }
 
-    public void onMove(float offset) {
+    protected void onMove(float offset) {
         if (offset == 0) {
             return;
         }
 
+        float dragRate = DRAG_RATE;
         if (offset < 0) {
-            offset = offset * DRAG_RATE;
+            offset = offset * dragRate - 0.5f;
+            if(getVisibleHeight() > footerHeight) {
+                // 因为忽略了refreshHeight，所以这里会超出最大高度，直接价格判断省事。
+                if(getVisibleHeight() >= maxDragDistance) {
+                    offset = 0;
+                } else {
+                    float extra = getVisibleHeight() - footerHeight;
+                    float extraPercent = Math.min(1, extra / maxDragDistance);
+                    dragRate = Utils.calcDragRate(extraPercent);
+                    offset = offset * dragRate - 0.5f;
+                }
+            }
         }
 
         // 往上滑动的时候才增加footer的高度，所以offset为负数。
@@ -128,13 +138,13 @@ public abstract class LoadMoreFooter extends LinearLayout {
         setVisibleHeight(target);
     }
 
-    public void setCanLoadMore(boolean canLoadMore) {
+    protected void setCanLoadMore(boolean canLoadMore) {
         // 设置不能加载更多
-        if(!canLoadMore && state != State.NOMORE) {
-            changeState(State.NOMORE);
+        if(!canLoadMore && state != State.NO_MORE) {
+            changeState(State.NO_MORE);
             setVisibleHeight(0);
             this.canLoadMore = false;
-        } else if(canLoadMore && state == State.NOMORE) {
+        } else if(canLoadMore && state == State.NO_MORE) {
             changeState(State.RESET);
             setVisibleHeight(footerHeight);
             this.canLoadMore = true;
@@ -182,23 +192,32 @@ public abstract class LoadMoreFooter extends LinearLayout {
             lastY = 0;
         }
     }
-    public void onItemClick() {
+
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        if (autoScroll != null) {
+            autoScroll.stop();
+        }
+    }
+
+    protected void onItemClick() {
         if(state == State.FAILURE) {
             changeState(State.LOADING);
         }
     }
 
     public enum State {
-        RESET, LOADING, FAILURE, NOMORE
+        RESET, LOADING, FAILURE, NO_MORE
     }
 
-    public abstract View getContentView();
+    protected abstract View getContentView();
 
-    public abstract void onReset();
+    protected abstract void onReset();
 
     protected abstract void onNoMore();
 
-    public abstract void onLoading();
+    protected abstract void onLoading();
 
-    public abstract void onFailure();
+    protected abstract void onFailure();
 }

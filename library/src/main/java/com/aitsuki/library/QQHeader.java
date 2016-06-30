@@ -1,4 +1,4 @@
-package com.aitsuki.alistview.widget;
+package com.aitsuki.library;
 
 import android.content.Context;
 import android.view.View;
@@ -6,13 +6,11 @@ import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 import android.widget.TextView;
 
-import com.aitsuki.alistview.R;
-
 /**
  * Created by AItsuki on 2016/6/22.
  *
  */
-public class DefaultHeader extends RefreshHeader {
+public class QQHeader extends RefreshHeader {
 
     private final Animation rotate_up;
     private final Animation rotate_down;
@@ -24,7 +22,7 @@ public class DefaultHeader extends RefreshHeader {
     private int currentPos;
     private int lastPos;
 
-    public DefaultHeader(Context context) {
+    public QQHeader(Context context) {
         super(context);
 
         // 初始化动画

@@ -1,4 +1,4 @@
-package com.aitsuki.alistview.widget;
+package com.aitsuki.library;
 
 import android.content.Context;
 import android.util.Log;
@@ -28,6 +28,8 @@ public abstract class RefreshHeader extends LinearLayout {
 
     private View contentView;   // header
     private int refreshHeight;  // 刷新高度
+    private int maxDragDistance;
+
     private boolean isTouch;
     private State state = State.RESET;
     private final AutoScroll autoScroll;
@@ -35,37 +37,56 @@ public abstract class RefreshHeader extends LinearLayout {
 
     public RefreshHeader(Context context) {
         super(context);
+        maxDragDistance = Utils.dip2px(context, 500); // 默认500dp
+
         autoScroll = new AutoScroll();
         // content由子类创建
         contentView = getContentView();
         LayoutParams lp = new LayoutParams(LayoutParams.MATCH_PARENT, 0);
         addView(contentView, lp);
 
-        measure(ViewGroup.LayoutParams.WRAP_CONTENT,ViewGroup.LayoutParams.WRAP_CONTENT);
+        measure(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         refreshHeight = getMeasuredHeight();
         Log.e(TAG, "refreshHeight = " + refreshHeight);
     }
 
-    public void bindRefreshing(Refreshing refreshing) {
+    protected void bindRefreshing(Refreshing refreshing) {
         this.refreshing = refreshing;
     }
 
-    public void setVisibleHeight(int height) {
+    protected void setVisibleHeight(int height) {
         height = Math.max(0, height);
         LayoutParams lp = (LayoutParams) contentView.getLayoutParams();
         lp.height = height;
         contentView.setLayoutParams(lp);
     }
 
+    /**
+     * 设置成功状态时，header的停留时间
+     */
     public void setShowCompletedTime(long time) {
-        if(time >= 0) {
+        if (time >= 0) {
             showCompletedTime = time;
         }
     }
 
+    /**
+     * 设置失败状态时，header的停留时间
+     */
     public void setShowFailureTime(long time) {
-        if(time >= 0) {
+        if (time >= 0) {
             showFailureTime = time;
+        }
+    }
+
+    /**
+     * 设置最大下拉高度(默认300dp)
+     *
+     * @param distance 最大下拉高度， 单位px
+     */
+    public void setMaxDragDistance(int distance) {
+        if (distance > 0) {
+            maxDragDistance = distance;
         }
     }
 
@@ -93,12 +114,25 @@ public abstract class RefreshHeader extends LinearLayout {
     }
 
     public void onMove(float offset) {
-        if(offset == 0) {
+        if (offset == 0) {
             return;
         }
 
-        if(offset > 0) {
-            offset = offset * DRAG_RATE;
+        float dragRate = DRAG_RATE;
+
+        if (offset > 0) {
+            offset = offset * dragRate + 0.5f;
+            if(getVisibleHeight() > refreshHeight) {
+                // 因为忽略了refreshHeight，所以这里会超出最大高度，直接价格判断省事。
+                if(getVisibleHeight() >= maxDragDistance) {
+                    offset = 0;
+                } else {
+                    float extra = getVisibleHeight() - refreshHeight;
+                    float extraPercent = Math.min(1, extra / maxDragDistance);
+                    dragRate = Utils.calcDragRate(extraPercent);
+                    offset = offset * dragRate + 0.5f;
+                }
+            }
         }
 
         int target = (int) Math.max(0, getVisibleHeight() + offset);
@@ -123,6 +157,7 @@ public abstract class RefreshHeader extends LinearLayout {
             target = refreshHeight;
         }
         setVisibleHeight(target);
+        Log.e("123123", "onMove: height = "+ getVisibleHeight());
         onPositionChange();
     }
 
@@ -141,20 +176,19 @@ public abstract class RefreshHeader extends LinearLayout {
     }
 
     public void setRefreshComplete(boolean success) {
-        if(success) {
+        if (success) {
             changeState(State.COMPLETE);
         } else {
             changeState(State.FAILURE);
         }
-
 
         if (getVisibleHeight() == 0) {
             changeState(State.RESET);
             return;
         }
 
-        if(!isTouch && getVisibleHeight() > 0) {
-            if(success) {
+        if (!isTouch && getVisibleHeight() > 0) {
+            if (success) {
                 postDelayed(delayToScrollTopRunnable, showCompletedTime);
             } else {
                 postDelayed(delayToScrollTopRunnable, showFailureTime);
@@ -163,7 +197,7 @@ public abstract class RefreshHeader extends LinearLayout {
     }
 
     private void changeState(State state) {
-        Log.e(TAG, "changeState: "+ state.name());
+        Log.e(TAG, "changeState: " + state.name());
         this.state = state;
         switch (state) {
             case RESET:
@@ -174,7 +208,7 @@ public abstract class RefreshHeader extends LinearLayout {
                 break;
             case REFRESHING:
                 onRefreshing();
-                if(refreshing != null) {
+                if (refreshing != null) {
                     refreshing.onRefreshCallBack();
                 }
                 break;
@@ -189,6 +223,7 @@ public abstract class RefreshHeader extends LinearLayout {
 
     /**
      * header的内容
+     *
      * @return view
      */
     public abstract View getContentView();
@@ -227,9 +262,10 @@ public abstract class RefreshHeader extends LinearLayout {
      * 自动刷新
      */
     public void autoRefresh() {
-        if(state != State.RESET) {
+        if (state != State.RESET) {
             return;
         }
+        // post可以保证View已经测量完毕
         post(new Runnable() {
             @Override
             public void run() {
@@ -296,7 +332,7 @@ public abstract class RefreshHeader extends LinearLayout {
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
-        if(autoScroll != null) {
+        if (autoScroll != null) {
             autoScroll.stop();
         }
 

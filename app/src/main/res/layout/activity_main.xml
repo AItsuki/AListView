@@ -5,12 +5,12 @@
     android:layout_height="match_parent"
     tools:context="com.aitsuki.alistview.MainActivity">
 
-    <com.aitsuki.alistview.widget.AListView
+    <com.aitsuki.library.AListView
         android:id="@+id/listView"
         android:layout_width="match_parent"
         android:layout_height="match_parent" >
 
-    </com.aitsuki.alistview.widget.AListView>
+    </com.aitsuki.library.AListView>
 
     <!--<ListView-->
         <!--android:id="@+id/listView"-->

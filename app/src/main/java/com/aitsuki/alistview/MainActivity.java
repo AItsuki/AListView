@@ -12,9 +12,10 @@ import android.widget.BaseAdapter;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.aitsuki.alistview.widget.AListView;
-import com.aitsuki.alistview.widget.OnLoadMoreListener;
-import com.aitsuki.alistview.widget.OnRefreshListener;
+
+import com.aitsuki.library.AListView;
+import com.aitsuki.library.OnLoadMoreListener;
+import com.aitsuki.library.OnRefreshListener;
 
 import java.util.ArrayList;
 import java.util.List;

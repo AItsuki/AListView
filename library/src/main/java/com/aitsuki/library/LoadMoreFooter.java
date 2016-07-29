@@ -80,6 +80,14 @@ public abstract class LoadMoreFooter extends LinearLayout {
     }
 
     protected void onRelease() {
+
+        // 如果是失败状态，松手后重新加载
+        if(state == State.FAILURE && getVisibleHeight() > footerHeight) {
+            changeState(State.LOADING);
+            autoScroll.scrollTo(footerHeight,250);
+            return;
+        }
+
         int height = canLoadMore ? footerHeight : 0;
         if(getVisibleHeight() > height) {
             autoScroll.scrollTo(height, 250);
@@ -142,8 +150,9 @@ public abstract class LoadMoreFooter extends LinearLayout {
         // 设置不能加载更多
         if(!canLoadMore && state != State.NO_MORE) {
             changeState(State.NO_MORE);
-            setVisibleHeight(0);
             this.canLoadMore = false;
+            autoScroll.scrollTo(0,1000);
+
         } else if(canLoadMore && state == State.NO_MORE) {
             changeState(State.RESET);
             setVisibleHeight(footerHeight);
